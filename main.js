@@ -444,8 +444,7 @@ updateUI();
 
 // --- Adblock detection and popup ---
 // Set to true to always show the adblock popup (useful if you want to request users to disable blockers)
-const ADBLOCK_ALWAYS_SHOW = false;
-
+// --- popup stuff stays the same ---
 function showAdblockPopup() {
     try {
         const popup = document.getElementById('adblockPopup');
@@ -531,11 +530,13 @@ const detectedAdblock = async () => {
 // --- replaced detector core here ---
 async function detectAdblockAndNotify() {
     try {
+
         const blocked = await detectedAdblock();
 
         if (blocked) {
             console.info("Adblock detected via fetch-based detector");
             showAdblockPopup();
+            console.log("Shown adblock popup");
         } else {
             console.info("No adblock detected");
             if (ADBLOCK_ALWAYS_SHOW) {
@@ -547,10 +548,10 @@ async function detectAdblockAndNotify() {
     }
 }
 
-
 // close button
 document.addEventListener('click', function (e) {
     if (e.target && (e.target.id === 'adblockClose' || e.target.classList.contains('adblock-close'))) {
+        //try { localStorage.setItem('adblockDismissed', '1'); } catch (_) {}
         hideAdblockPopup();
     }
 });
