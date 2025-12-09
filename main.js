@@ -439,16 +439,19 @@ document.getElementById('searchBar').addEventListener('input', function(e) {
     });
 });
 
-loadCategories();
-updateUI();
-
 // --- Adblock detection and popup ---
 // Set to true to always show the adblock popup (useful if you want to request users to disable blockers)
 // --- popup stuff stays the same ---
+// Provide a default value so the code doesn't blow up if not defined elsewhere
+const ADBLOCK_ALWAYS_SHOW = false;
+
 function showAdblockPopup() {
     try {
         const popup = document.getElementById('adblockPopup');
-        if (!popup) return;
+        if (!popup) {
+            console.warn('showAdblockPopup: #adblockPopup element not found in DOM.');
+            return;
+        }
         popup.setAttribute('aria-hidden', 'false');
         popup.classList.add('show');
     } catch (e) { console.error(e); }
@@ -523,6 +526,7 @@ const detectedAdblock = async () => {
         yieldkitCheck()
     ]);
 
+    console.info('Adblock detection checks results:', resp);
     const isNotUsingAdblocker = resp.every(r => r === false);
     return !isNotUsingAdblocker;
 };
@@ -530,8 +534,9 @@ const detectedAdblock = async () => {
 // --- replaced detector core here ---
 async function detectAdblockAndNotify() {
     try {
-
         const blocked = await detectedAdblock();
+
+        console.info('Adblock detected?', blocked);
 
         if (blocked) {
             console.info("Adblock detected via fetch-based detector");
@@ -539,7 +544,8 @@ async function detectAdblockAndNotify() {
             console.log("Shown adblock popup");
         } else {
             console.info("No adblock detected");
-            if (ADBLOCK_ALWAYS_SHOW) {
+            // guard against undefined global variable
+            if (typeof ADBLOCK_ALWAYS_SHOW !== 'undefined' && ADBLOCK_ALWAYS_SHOW) {
                 showAdblockPopup();
             }
         }
@@ -556,5 +562,16 @@ document.addEventListener('click', function (e) {
     }
 });
 
-// run it
-window.setTimeout(detectAdblockAndNotify, 200);
+// run initialization after DOM is ready so elements exist
+document.addEventListener('DOMContentLoaded', () => {
+    // only call UI setup after DOM is available
+    try {
+        loadCategories();
+        updateUI();
+    } catch (e) {
+        console.error('Initialization error', e);
+    }
+
+    // delay adblock detection slightly to let the page start loading
+    setTimeout(detectAdblockAndNotify, 200);
+});
