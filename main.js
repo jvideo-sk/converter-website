@@ -541,25 +541,12 @@ async function detectAdblockAndNotify() {
             if (ADBLOCK_ALWAYS_SHOW) {
                 showAdblockPopup();
             }
-            // Initialize ads when no adblock is detected
-            initializeAds();
         }
     } catch (e) {
         console.error('Adblock detection error', e);
-        // Attempt to initialize ads anyway
-        initializeAds();
     }
 }
 
-function initializeAds() {
-    try {
-        if (window.adsbygoogle && window.adsbygoogle.length === 0) {
-            window.adsbygoogle.push({});
-        }
-    } catch (e) {
-        console.error('Ad initialization error:', e);
-    }
-}
 
 // close button
 document.addEventListener('click', function (e) {
