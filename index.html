@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Converter</title>
+    <link rel="stylesheet" href="main.css">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5443148169531175" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="nav-tabs">
+            <div class="nav-tab active" onclick="switchPage('blocks')">Blocks</div>
+            <div class="nav-tab" onclick="switchPage('tools')">Tools</div>
+            <div class="nav-tab" onclick="switchPage('armor')">Armor</div>
+            <div class="nav-tab" onclick="switchPage('currency')">Currency</div>
+        </div>
+        
+        <h2 id="sidebarTitle">Block Library</h2>
+        <p class="sidebar-instructions">Click any item to select it for conversion</p>
+        <input type="text" class="search-bar" id="searchBar" placeholder="Search items...">
+        
+        <div id="categoriesContainer"></div>
+    </div>
+    
+    <div class="container">
+        <div class="page active" id="page-blocks">
+            <h1>Block Converter</h1>
+            <p class="subtitle">Convert between different block types based on their value</p>
+        </div>
+        
+        <div class="page" id="page-tools">
+            <h1>Tool Converter</h1>
+            <p class="subtitle">Convert between different tool types and materials</p>
+        </div>
+        
+        <div class="page" id="page-armor">
+            <h1>Armor Converter</h1>
+            <p class="subtitle">Convert between different armor pieces and materials</p>
+        </div>
+        
+        <div class="page" id="page-currency">
+            <h1>Currency Converter</h1>
+            <p class="subtitle">Convert between emeralds, diamonds, and gold</p>
+        </div>
+        
+        <div class="converter-section">
+            <div class="block-container" id="fromContainer" onclick="setSelectionMode('from')">
+                <label>From Item</label>
+                <div class="block-display" id="fromBlockDisplay">
+                    <span class="block-display-placeholder">Select an item</span>
+                </div>
+                <div class="selection-hint" id="fromHint"></div>
+            </div>
+            
+            <div class="arrow">→</div>
+            
+            <div class="block-container" id="toContainer" onclick="setSelectionMode('to')">
+                <label>To Item</label>
+                <div class="block-display" id="toBlockDisplay">
+                    <span class="block-display-placeholder">Select an item</span>
+                </div>
+                <div class="selection-hint" id="toHint"></div>
+            </div>
+        </div>
+        
+        <div class="amount-section">
+            <label for="amount">Amount to Convert</label>
+            <input type="text" id="amount" value="1" placeholder="e.g. 100, 5M, 2.5B, 10Qt">
+        </div>
+        
+        <button onclick="convertItems()" id="convertButton">Convert Items</button>
+        
+        <div class="result" id="result">
+            <div class="result-text" id="resultText"></div>
+            <button class="reset-button" onclick="resetConverter()">Reset Converter</button>
+        </div>
+
+        <!-- Ad placement -->
+        <div id="ad-container" class="ad-container">
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-5443148169531175"
+                 data-ad-slot="3514336618"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+    <script src="main.js"></script>
+
+    <!-- Adblock detection popup -->
+    <div id="adblockPopup" class="adblock-popup" aria-hidden="true">
+        <div class="adblock-popup-inner">
+            <button class="adblock-close" id="adblockClose" aria-label="Close">x</button>
+            <h3>Sharing is caring</h3>
+            <p>Please consider turning off your adblocker to support this site.</p>
+        </div>
+    </div>
+</body>
+</html>
