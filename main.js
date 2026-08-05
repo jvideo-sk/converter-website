@@ -77,7 +77,7 @@ function formatNumber(num) {
 
 // Example with custom formula:
 // { id: 'custom_item', name: 'Custom Item', value: 10, formula: 'amount * 2.5' }
-// Else:
+// Else: 
 // { id: "something", name: "idk ", value: 1}
 const data = {
     blocks: {
