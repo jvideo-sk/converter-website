@@ -3,8 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Convert between Minecraft blocks, tools, armor, and currency values.">
     <title>Block Converter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="main.css">
+</head>
 <body>
     <div class="sidebar">
         <div class="nav-tabs">
@@ -13,35 +18,35 @@
             <div class="nav-tab" onclick="switchPage('armor')">Armor</div>
             <div class="nav-tab" onclick="switchPage('currency')">Currency</div>
         </div>
-        
+
         <h2 id="sidebarTitle">Block Library</h2>
         <p class="sidebar-instructions">Click any item to select it for conversion</p>
         <input type="text" class="search-bar" id="searchBar" placeholder="Search items...">
-        
+
         <div id="categoriesContainer"></div>
     </div>
-    
+
     <div class="container">
         <div class="page active" id="page-blocks">
             <h1>Block Converter</h1>
             <p class="subtitle">Convert between different block types based on their value</p>
         </div>
-        
+
         <div class="page" id="page-tools">
             <h1>Tool Converter</h1>
             <p class="subtitle">Convert between different tool types and materials</p>
         </div>
-        
+
         <div class="page" id="page-armor">
             <h1>Armor Converter</h1>
             <p class="subtitle">Convert between different armor pieces and materials</p>
         </div>
-        
+
         <div class="page" id="page-currency">
             <h1>Currency Converter</h1>
             <p class="subtitle">Convert between emeralds, diamonds, and gold</p>
         </div>
-        
+
         <div class="converter-section">
             <div class="block-container" id="fromContainer" onclick="setSelectionMode('from')">
                 <label>From Item</label>
@@ -50,9 +55,9 @@
                 </div>
                 <div class="selection-hint" id="fromHint"></div>
             </div>
-            
+
             <div class="arrow">→</div>
-            
+
             <div class="block-container" id="toContainer" onclick="setSelectionMode('to')">
                 <label>To Item</label>
                 <div class="block-display" id="toBlockDisplay">
@@ -61,22 +66,19 @@
                 <div class="selection-hint" id="toHint"></div>
             </div>
         </div>
-        
+
         <div class="amount-section">
             <label for="amount">Amount to Convert</label>
             <input type="text" id="amount" value="1" placeholder="e.g. 100, 5M, 2.5B, 10Qt">
         </div>
-        
+
         <button onclick="convertItems()" id="convertButton">Convert Items</button>
-        
+
         <div class="result" id="result">
             <div class="result-text" id="resultText"></div>
             <button class="reset-button" onclick="resetConverter()">Reset Converter</button>
         </div>
-
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
-    <script src="main.js"></script>
+    </div>
 
     <!-- Adblock detection popup -->
     <div id="adblockPopup" class="adblock-popup" aria-hidden="true">
@@ -86,5 +88,8 @@
             <p>Please consider turning off your adblocker to support this site.</p>
         </div>
     </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>

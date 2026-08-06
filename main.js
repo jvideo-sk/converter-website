@@ -53,25 +53,30 @@ const suffixes = {
     '': new Decimal(1),
 };
 
+// Precomputed once instead of Object.keys().filter() on every formatNumber call.
+// Object key order is already largest -> smallest, so no sort needed, just drop ''.
+const SUFFIX_ENTRIES = Object.entries(suffixes).filter(([key]) => key !== '');
+
+// Case-insensitive suffix lookup built once, instead of scanning Object.keys()
+// every time a user types a lowercase/mixed-case suffix.
+const SUFFIX_LOOKUP_LOWER = Object.keys(suffixes).reduce((map, key) => {
+    if (key !== '') map[key.toLowerCase()] = key;
+    return map;
+}, {});
+
 function formatNumber(num) {
     const decimal = new Decimal(num);
-    
+
     if (decimal.lessThan(1000)) {
         return decimal.toFixed(2).replace(/\.?0+$/, '');
     }
-    
-    const suffixKeys = Object.keys(suffixes).filter(k => k !== '');
-    
-    for (let i = 0; i < suffixKeys.length; i++) {
-        const suffix = suffixKeys[i];
-        const value = suffixes[suffix];
-        
+
+    for (const [suffix, value] of SUFFIX_ENTRIES) {
         if (decimal.greaterThanOrEqualTo(value)) {
-            const divided = decimal.dividedBy(value);
-            return divided.toFixed(2).replace(/\.?0+$/, '') + suffix;
+            return decimal.dividedBy(value).toFixed(2).replace(/\.?0+$/, '') + suffix;
         }
     }
-    
+
     return decimal.toFixed(2).replace(/\.?0+$/, '');
 }
 
@@ -103,10 +108,22 @@ const data = {
             { id: 'emerald', name: 'Emerald', value: 25 },
         ],
         blocks: [
-            { id: 'emerald_block', name: 'Emerald Block', value: 225},
+            { id: 'emerald_block', name: 'Emerald Block', value: 225 },
         ]
     }
 };
+
+const PAGE_TAB_INDEX = { blocks: 0, tools: 1, armor: 2, currency: 3 };
+const PAGE_TITLES = {
+    blocks: 'Block Library',
+    tools: 'Tool Library',
+    armor: 'Armor Library',
+    currency: 'Currency Library'
+};
+
+// Cache every element we touch repeatedly instead of calling
+// document.getElementById() over and over on every interaction.
+const dom = {};
 
 let currentPage = 'blocks';
 let allItems = {};
@@ -115,39 +132,46 @@ let selectionMode = 'from';
 let selectedFromItem = null;
 let selectedToItem = null;
 
+// DOM refs kept directly so highlighting the from/to selection is O(1)
+// instead of re-querying and looping over every .item element.
+let selectedFromEl = null;
+let selectedToEl = null;
+
+// category -> { itemsListEl, arrowEl, headerEl, itemEls: [{el, name}] }
+// built once per loadCategories() call, reused by search/toggle instead of
+// re-querying the DOM on every keystroke/click.
+let categoryIndex = {};
+
 function switchPage(page) {
     currentPage = page;
-    
-    document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-    event.target.classList.add('active');
-    
+
+    const tabs = document.querySelectorAll('.nav-tab');
+    tabs.forEach(tab => tab.classList.remove('active'));
+    const activeTab = tabs[PAGE_TAB_INDEX[page]];
+    if (activeTab) activeTab.classList.add('active');
+
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(`page-${page}`).classList.add('active');
-    
-    const titles = {
-        blocks: 'Block Library',
-        tools: 'Tool Library',
-        armor: 'Armor Library',
-        currency: 'Currency Library'
-    };
-    document.getElementById('sidebarTitle').textContent = titles[page];
-    
+
+    dom.sidebarTitle.textContent = PAGE_TITLES[page];
+
     resetConverter();
     loadCategories();
 }
 
 function loadCategories() {
-    const container = document.getElementById('categoriesContainer');
-    container.innerHTML = '';
+    dom.categoriesContainer.innerHTML = '';
     allItems = {};
     openCategories = {};
-    
+    categoryIndex = {};
+
     const categories = data[currentPage];
-    
+    const fragment = document.createDocumentFragment();
+
     Object.keys(categories).forEach(category => {
         const categoryDiv = document.createElement('div');
         categoryDiv.className = 'category';
-        
+
         const header = document.createElement('div');
         header.className = 'category-header';
         header.innerHTML = `
@@ -155,47 +179,52 @@ function loadCategories() {
             <span class="arrow-icon" id="arrow-${category}">▶</span>
         `;
         header.onclick = () => toggleCategory(category);
-        
+
         const itemsList = document.createElement('div');
         itemsList.className = 'items-list';
         itemsList.id = `items-${category}`;
-        
+
+        const itemEls = [];
+
         categories[category].forEach(item => {
             allItems[item.id] = item;
-            
+
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item';
             itemDiv.textContent = item.name;
             itemDiv.setAttribute('data-item-id', item.id);
-            itemDiv.setAttribute('data-item-name', item.name.toLowerCase());
-            itemDiv.onclick = () => selectItem(item.id);
+            itemDiv.onclick = () => selectItem(item.id, itemDiv);
             itemsList.appendChild(itemDiv);
+
+            itemEls.push({ el: itemDiv, name: item.name.toLowerCase() });
         });
-        
+
         categoryDiv.appendChild(header);
         categoryDiv.appendChild(itemsList);
-        container.appendChild(categoryDiv);
+        fragment.appendChild(categoryDiv);
+
+        categoryIndex[category] = {
+            itemsListEl: itemsList,
+            arrowEl: header.querySelector('.arrow-icon'),
+            headerEl: header,
+            itemEls
+        };
     });
+
+    // Single reflow instead of one appendChild per category.
+    dom.categoriesContainer.appendChild(fragment);
 }
 
 function toggleCategory(category) {
-    const itemsList = document.getElementById(`items-${category}`);
-    const arrow = document.getElementById(`arrow-${category}`);
-    const header = arrow.parentElement;
-    
+    const entry = categoryIndex[category];
+    if (!entry) return;
+
     const isOpen = openCategories[category];
-    
-    if (isOpen) {
-        itemsList.classList.remove('open');
-        arrow.classList.remove('open');
-        header.classList.remove('active');
-        openCategories[category] = false;
-    } else {
-        itemsList.classList.add('open');
-        arrow.classList.add('open');
-        header.classList.add('active');
-        openCategories[category] = true;
-    }
+
+    entry.itemsListEl.classList.toggle('open', !isOpen);
+    entry.arrowEl.classList.toggle('open', !isOpen);
+    entry.headerEl.classList.toggle('active', !isOpen);
+    openCategories[category] = !isOpen;
 }
 
 function setSelectionMode(mode) {
@@ -204,68 +233,49 @@ function setSelectionMode(mode) {
 }
 
 function updateUI() {
-    const fromContainer = document.getElementById('fromContainer');
-    const toContainer = document.getElementById('toContainer');
-    const fromHint = document.getElementById('fromHint');
-    const toHint = document.getElementById('toHint');
-    const convertButton = document.getElementById('convertButton');
-    
-    fromContainer.classList.remove('active-from');
-    toContainer.classList.remove('active-to');
-    
+    dom.fromContainer.classList.remove('active-from');
+    dom.toContainer.classList.remove('active-to');
+
     if (selectionMode === 'from') {
-        fromContainer.classList.add('active-from');
-        fromHint.textContent = '← Click an item in the sidebar';
-        toHint.textContent = '';
+        dom.fromContainer.classList.add('active-from');
+        dom.fromHint.textContent = '← Click an item in the sidebar';
+        dom.toHint.textContent = '';
     } else {
-        toContainer.classList.add('active-to');
-        toHint.textContent = '← Click an item in the sidebar';
-        fromHint.textContent = '';
+        dom.toContainer.classList.add('active-to');
+        dom.toHint.textContent = '← Click an item in the sidebar';
+        dom.fromHint.textContent = '';
     }
-    
-    if (selectedFromItem) {
-        fromContainer.classList.add('has-selection');
-    }
-    if (selectedToItem) {
-        toContainer.classList.add('has-selection');
-    }
-    
-    convertButton.disabled = !selectedFromItem || !selectedToItem;
-    
-    updateItemHighlights();
+
+    dom.fromContainer.classList.toggle('has-selection', !!selectedFromItem);
+    dom.toContainer.classList.toggle('has-selection', !!selectedToItem);
+
+    dom.convertButton.disabled = !selectedFromItem || !selectedToItem;
 }
 
-function updateItemHighlights() {
-    document.querySelectorAll('.item').forEach(item => {
-        item.classList.remove('selected-from', 'selected-to');
-        const itemId = item.getAttribute('data-item-id');
-        if (itemId === selectedFromItem) {
-            item.classList.add('selected-from');
-        }
-        if (itemId === selectedToItem) {
-            item.classList.add('selected-to');
-        }
-    });
-}
-
-function selectItem(itemId) {
+// itemEl is passed straight from the click handler (loadCategories already
+// has the reference), so this never needs to query the DOM for it.
+function selectItem(itemId, itemEl) {
     const item = allItems[itemId];
-    
+
     if (selectionMode === 'from') {
+        if (selectedFromEl) selectedFromEl.classList.remove('selected-from');
         selectedFromItem = itemId;
-        const display = document.getElementById('fromBlockDisplay');
-        display.innerHTML = item.name;
-        
+        selectedFromEl = itemEl;
+        itemEl.classList.add('selected-from');
+        dom.fromBlockDisplay.innerHTML = item.name;
+
         if (!selectedToItem) {
             setSelectionMode('to');
         } else {
             updateUI();
         }
     } else {
+        if (selectedToEl) selectedToEl.classList.remove('selected-to');
         selectedToItem = itemId;
-        const display = document.getElementById('toBlockDisplay');
-        display.innerHTML = item.name;
-        
+        selectedToEl = itemEl;
+        itemEl.classList.add('selected-to');
+        dom.toBlockDisplay.innerHTML = item.name;
+
         if (!selectedFromItem) {
             setSelectionMode('from');
         } else {
@@ -278,31 +288,26 @@ function parseAmountWithSuffix(input) {
     if (!input || input === '') {
         return null;
     }
-    
+
     input = input.trim();
-    
-    // Try to match number followed by suffix
+
     const match = input.match(/^([\d.]+)\s*([a-zA-Z]*)$/);
-    
+
     if (!match) {
         return null;
     }
-    
+
     const numberPart = match[1];
     const suffixPart = match[2];
-    
+
     try {
         let amount = new Decimal(numberPart);
-        
-        if (suffixPart && suffixPart !== '') {
-            // Find matching suffix (case-sensitive)
+
+        if (suffixPart) {
             if (suffixes[suffixPart]) {
                 amount = amount.times(suffixes[suffixPart]);
             } else {
-                // Check if it's a valid suffix but wrong case
-                const foundSuffix = Object.keys(suffixes).find(
-                    key => key.toLowerCase() === suffixPart.toLowerCase() && key !== ''
-                );
+                const foundSuffix = SUFFIX_LOOKUP_LOWER[suffixPart.toLowerCase()];
                 if (foundSuffix) {
                     amount = amount.times(suffixes[foundSuffix]);
                 } else {
@@ -310,7 +315,7 @@ function parseAmountWithSuffix(input) {
                 }
             }
         }
-        
+
         return amount;
     } catch (e) {
         return null;
@@ -319,7 +324,6 @@ function parseAmountWithSuffix(input) {
 
 function evaluateFormula(formula, variables) {
     try {
-        // Create a safe evaluation context
         const func = new Function(...Object.keys(variables), `return ${formula}`);
         const result = func(...Object.values(variables));
         return new Decimal(result);
@@ -333,29 +337,25 @@ function convertItems() {
     if (!selectedFromItem || !selectedToItem) {
         return;
     }
-    
-    const amountInput = document.getElementById('amount').value;
-    
-    const amountDecimal = parseAmountWithSuffix(amountInput);
-    
+
+    const amountDecimal = parseAmountWithSuffix(dom.amount.value);
+
     if (!amountDecimal) {
         alert('Please enter a valid amount! Examples: 100, 5M, 2.5B, 10Qt');
         return;
     }
-    
+
     if (amountDecimal.lessThanOrEqualTo(0)) {
         alert('Please enter a positive amount!');
         return;
     }
-    
+
     const fromItem = allItems[selectedFromItem];
     const toItem = allItems[selectedToItem];
-    
+
     let toAmount;
-    
-    // Check if either item has a custom formula
+
     if (fromItem.formula && toItem.formula) {
-        // Both have formulas - apply both
         const fromFormulaResult = evaluateFormula(fromItem.formula, { amount: amountDecimal });
         if (fromFormulaResult === null) {
             alert('Error in "From" item formula. Check the formula syntax.');
@@ -368,7 +368,6 @@ function convertItems() {
         }
         toAmount = toFormulaResult.floor();
     } else if (fromItem.formula) {
-        // Only "from" has formula
         const fromFormulaResult = evaluateFormula(fromItem.formula, { amount: amountDecimal });
         if (fromFormulaResult === null) {
             alert('Error in "From" item formula. Check the formula syntax.');
@@ -376,7 +375,6 @@ function convertItems() {
         }
         toAmount = fromFormulaResult.dividedBy(toItem.value).floor();
     } else if (toItem.formula) {
-        // Only "to" has formula
         const fromValue = amountDecimal.times(fromItem.value);
         const toFormulaResult = evaluateFormula(toItem.formula, { amount: fromValue });
         if (toFormulaResult === null) {
@@ -385,88 +383,84 @@ function convertItems() {
         }
         toAmount = toFormulaResult.floor();
     } else {
-        // No formulas - use standard value-based conversion
         const fromValue = amountDecimal.times(fromItem.value);
         toAmount = fromValue.dividedBy(toItem.value).floor();
     }
-    
-    const resultDiv = document.getElementById('result');
-    const resultText = document.getElementById('resultText');
-    
-    resultText.innerHTML = `
+
+    dom.resultText.innerHTML = `
         ${formatNumber(amountDecimal)} ${fromItem.name}<br><br>
         ↓<br><br>
         <strong>${formatNumber(toAmount)} ${toItem.name}</strong>
     `;
-    
-    resultDiv.classList.add('show');
+
+    dom.result.classList.add('show');
 }
 
 function resetConverter() {
     selectedFromItem = null;
     selectedToItem = null;
     selectionMode = 'from';
-    
-    document.getElementById('fromBlockDisplay').innerHTML = '<span class="block-display-placeholder">Select an item</span>';
-    document.getElementById('toBlockDisplay').innerHTML = '<span class="block-display-placeholder">Select an item</span>';
-    document.getElementById('result').classList.remove('show');
-    document.getElementById('amount').value = '1';
-    
+
+    if (selectedFromEl) selectedFromEl.classList.remove('selected-from');
+    if (selectedToEl) selectedToEl.classList.remove('selected-to');
+    selectedFromEl = null;
+    selectedToEl = null;
+
+    dom.fromBlockDisplay.innerHTML = '<span class="block-display-placeholder">Select an item</span>';
+    dom.toBlockDisplay.innerHTML = '<span class="block-display-placeholder">Select an item</span>';
+    dom.result.classList.remove('show');
+    dom.amount.value = '1';
+
     updateUI();
 }
 
-document.getElementById('searchBar').addEventListener('input', function(e) {
+// Small debounce so search filtering doesn't run on every single keystroke
+// (matters once the item lists get long).
+function debounce(fn, delay) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+    };
+}
+
+function handleSearch(e) {
     const searchTerm = e.target.value.toLowerCase();
-    
-    Object.keys(data[currentPage]).forEach(category => {
-        const itemsList = document.getElementById(`items-${category}`);
-        const items = itemsList.querySelectorAll('.item');
+
+    Object.keys(categoryIndex).forEach(category => {
+        const entry = categoryIndex[category];
         let hasVisibleItems = false;
-        
-        items.forEach(item => {
-            const itemName = item.getAttribute('data-item-name');
-            if (itemName.includes(searchTerm)) {
-                item.style.display = 'block';
-                hasVisibleItems = true;
-            } else {
-                item.style.display = 'none';
-            }
+
+        entry.itemEls.forEach(({ el, name }) => {
+            const matches = name.includes(searchTerm);
+            el.style.display = matches ? 'block' : 'none';
+            if (matches) hasVisibleItems = true;
         });
-        
+
         if (searchTerm && hasVisibleItems && !openCategories[category]) {
             toggleCategory(category);
         }
     });
-});
+}
 
 // --- Adblock detection and popup ---
-// Set to true to always show the adblock popup (useful if you want to request users to disable blockers)
-// --- popup stuff stays the same ---
-// Provide a default value so the code doesn't blow up if not defined elsewhere
 const ADBLOCK_ALWAYS_SHOW = false;
 
 function showAdblockPopup() {
-    try {
-        const popup = document.getElementById('adblockPopup');
-        if (!popup) {
-            console.warn('showAdblockPopup: #adblockPopup element not found in DOM.');
-            return;
-        }
-        popup.setAttribute('aria-hidden', 'false');
-        popup.classList.add('show');
-    } catch (e) { console.error(e); }
+    if (!dom.adblockPopup) {
+        console.warn('showAdblockPopup: #adblockPopup element not found in DOM.');
+        return;
+    }
+    dom.adblockPopup.setAttribute('aria-hidden', 'false');
+    dom.adblockPopup.classList.add('show');
 }
 
 function hideAdblockPopup() {
-    try {
-        const popup = document.getElementById('adblockPopup');
-        if (!popup) return;
-        popup.setAttribute('aria-hidden', 'true');
-        popup.classList.remove('show');
-    } catch (e) { console.error(e); }
+    if (!dom.adblockPopup) return;
+    dom.adblockPopup.setAttribute('aria-hidden', 'true');
+    dom.adblockPopup.classList.remove('show');
 }
 
-// --- your new fetch-based detector dropped in ---
 const outbrainErrorCheck = async () => {
     try { await fetch("https://widgets.outbrain.com/outbrain.js"); return false; }
     catch { return true; }
@@ -493,11 +487,11 @@ const srvtrackErrorCheck = async () => {
 };
 
 const yieldkitCheck = async () => {
-    try { 
+    try {
         await fetch("https://js.srvtrck.com/v1/js?api_key=40710abb89ad9e06874a667b2bc7dee7&site_id=1f10f78243674fcdba586e526cb8ef08", { mode: "no-cors" });
         return false;
-    } catch { 
-        return true; 
+    } catch {
+        return true;
     }
 };
 
@@ -505,16 +499,14 @@ const setIntervalCheck = () => {
     return new Promise((resolve) => {
         const timeout = setTimeout(() => resolve(true), 2000);
         const interval = setInterval(() => {
-            const a0b = "a0b";
-            if (a0b === "a0b") {
-                clearInterval(interval);
-                clearTimeout(timeout);
-                resolve(false);
-            }
+            clearInterval(interval);
+            clearTimeout(timeout);
+            resolve(false);
         }, 100);
     });
 };
 
+// All checks fire in parallel via Promise.all already — that part was fine.
 const detectedAdblock = async () => {
     const resp = await Promise.all([
         outbrainErrorCheck(),
@@ -527,44 +519,42 @@ const detectedAdblock = async () => {
     ]);
 
     console.info('Adblock detection checks results:', resp);
-    const isNotUsingAdblocker = resp.every(r => r === false);
-    return !isNotUsingAdblocker;
+    return resp.some(r => r === true);
 };
 
-// --- replaced detector core here ---
 async function detectAdblockAndNotify() {
     try {
         const blocked = await detectedAdblock();
-
         console.info('Adblock detected?', blocked);
 
         if (blocked) {
             console.info("Adblock detected via fetch-based detector");
             showAdblockPopup();
-            console.log("Shown adblock popup");
-        } else {
-            console.info("No adblock detected");
-            // guard against undefined global variable
-            if (typeof ADBLOCK_ALWAYS_SHOW !== 'undefined' && ADBLOCK_ALWAYS_SHOW) {
-                showAdblockPopup();
-            }
+        } else if (ADBLOCK_ALWAYS_SHOW) {
+            showAdblockPopup();
         }
     } catch (e) {
         console.error('Adblock detection error', e);
     }
 }
 
-// close button
-document.addEventListener('click', function (e) {
-    if (e.target && (e.target.id === 'adblockClose' || e.target.classList.contains('adblock-close'))) {
-        //try { localStorage.setItem('adblockDismissed', '1'); } catch (_) {}
-        hideAdblockPopup();
-    }
-});
-
-// run initialization after DOM is ready so elements exist
 document.addEventListener('DOMContentLoaded', () => {
-    // only call UI setup after DOM is available
+    // Populate the DOM cache once, up front.
+    [
+        'sidebarTitle', 'categoriesContainer', 'searchBar',
+        'fromContainer', 'toContainer', 'fromHint', 'toHint',
+        'fromBlockDisplay', 'toBlockDisplay', 'convertButton',
+        'amount', 'result', 'resultText', 'adblockPopup', 'adblockClose'
+    ].forEach(id => { dom[id] = document.getElementById(id); });
+
+    dom.searchBar.addEventListener('input', debounce(handleSearch, 120));
+
+    document.addEventListener('click', (e) => {
+        if (e.target && (e.target.id === 'adblockClose' || e.target.classList.contains('adblock-close'))) {
+            hideAdblockPopup();
+        }
+    });
+
     try {
         loadCategories();
         updateUI();
@@ -572,6 +562,5 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Initialization error', e);
     }
 
-    // delay adblock detection slightly to let the page start loading
     setTimeout(detectAdblockAndNotify, 200);
 });
